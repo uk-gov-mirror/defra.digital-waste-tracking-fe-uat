@@ -138,28 +138,76 @@ class GovPayPage extends Page {
     await this.click(this.confirmPaymentButton)
   }
 
-  async waitForPaymentStatus(govPayAPI, paymentReference, timeoutMs = 30000) {
+  async waitForPaymentStatus(govPayAPI, paymentId, timeoutMs = 30000) {
     let json = null
     try {
       await browser.waitUntil(
         async () => {
-          const response = await govPayAPI.getPaymentStatus(paymentReference)
+          const response = await govPayAPI.getPaymentStatus(paymentId)
           json = response.json
           return response.statusCode !== 404
         },
         {
           timeout: timeoutMs,
           interval: 3000,
-          timeoutMsg: `Payment status for payment reference "${paymentReference}" was not found within ${timeoutMs / 1000}s`
+          timeoutMsg: `Payment status for payment id "${paymentId}" was not found within ${timeoutMs / 1000}s`
         }
       )
     } catch (error) {
       log.error(
-        `waitForPaymentStatus timed out or errored for reference "${paymentReference}":`,
+        `waitForPaymentStatus timed out or errored for payment id "${paymentId}":`,
         error.message
       )
     }
     return json
+  }
+
+  async verifyRefundSummaryStatus(
+    govPayAPI,
+    paymentId,
+    expectedStatus,
+    expectedAmountAvailable
+  ) {
+    const paymentStatus = await this.waitForPaymentStatus(govPayAPI, paymentId)
+    expect(paymentStatus).toBeDefined()
+
+    const refundSummary = paymentStatus.refund_summary
+    expect(refundSummary?.status).toBe(expectedStatus)
+    expect(refundSummary.amount_available).toBeDefined()
+    if (expectedAmountAvailable !== undefined) {
+      expect(refundSummary.amount_available).toBe(
+        Number(expectedAmountAvailable)
+      )
+    }
+
+    return { paymentStatus, refundSummary }
+  }
+
+  async issueRefund(
+    govPayAPI,
+    paymentId,
+    refundSummary,
+    refundType,
+    refundAmount
+  ) {
+    const amount =
+      refundType === 'full'
+        ? refundSummary.amount_available
+        : Number(refundAmount)
+
+    expect(amount).toBeDefined()
+
+    const refundResponse = await govPayAPI.issueARefund(
+      paymentId,
+      amount,
+      refundSummary.amount_available
+    )
+
+    return {
+      expectedRefundAmountAvailable: refundSummary.amount_available - amount,
+      refundResponse,
+      refundId: refundResponse.json?.refund_id
+    }
   }
 
   async continueAfterPaymentError() {
