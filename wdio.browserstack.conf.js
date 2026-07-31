@@ -371,14 +371,16 @@ export const config = {
     if (cucumberWorld.govGatewayUser !== undefined) {
       await addValueToPool('availableUsers', cucumberWorld.govGatewayUser)
     }
-    if (cucumberWorld.defraIdMockUserId !== undefined) {
+    const defraIdMockUserIds = [
+      cucumberWorld.defraIdMockUserId,
+      cucumberWorld.differentDefraIdMockUserId
+    ].filter(Boolean)
+    for (const defraIdMockUserId of defraIdMockUserIds) {
       // cleanup the user from the defra id mock service
       log.info(
-        `cleaning up the user from the defra id mock service: ${cucumberWorld.defraIdMockUserId}`
+        `cleaning up the user from the defra id mock service: ${defraIdMockUserId}`
       )
-      await cucumberWorld.apis.defraIdStubAPI.expireUser(
-        cucumberWorld.defraIdMockUserId
-      )
+      await cucumberWorld.apis.defraIdStubAPI.expireUser(defraIdMockUserId)
     }
   },
   /**

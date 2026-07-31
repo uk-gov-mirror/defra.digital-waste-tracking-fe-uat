@@ -61,6 +61,7 @@ Given('a user is registered in Defra Id mock service', async function () {
   )
   this.defraIdMockUserId = response.json.userId
   this.defraIdMockUser = this.userEmail
+  this.originalUserEmail = this.userEmail
 })
 
 When(
@@ -81,6 +82,7 @@ async function registerAndLoginViaStub(context) {
   )
   context.defraIdMockUserId = response.json.userId
   context.defraIdMockUser = context.userEmail
+  context.originalUserEmail = context.userEmail
 
   await UKPermitPage.open()
   await UKPermitPage.verifyUserIsOnUKPermitPage()
@@ -93,11 +95,11 @@ async function registerAndLoginViaStub(context) {
 
   await DefraIdStubPage.loginAsAUser(context.userEmail)
 
-  const temp = await DefraIdStubPage.getFirstOrganisationId()
-  context.organisationId = temp
-    .replace(/Organisation ID:/g, '')
-    .replace(/\| Role: Employee/g, '')
-    .trim()
+  const organisationDetails =
+    await DefraIdStubPage.getFirstOrganisationDetails()
+  context.organisationId = organisationDetails.organisationId
+  context.relationshipId = organisationDetails.relationshipId
+  context.organisationName = 'Some Receiver Org'
   await DefraIdStubPage.selectFirstOrganisation()
 
   await MyAccountHomePage.verifyUserIsOnMyAccountHomePage()
@@ -115,6 +117,61 @@ async function registerAndLoginViaStub(context) {
   //   expect(response1.statusCode).toBe(200)
   //   await MyAccountHomePage.refreshPage()
   // }
+}
+
+async function registerAnotherUserViaDefraIdStub(context) {
+  expect(context.organisationId).toBeDefined()
+  expect(context.organisationName).toBeDefined()
+  expect(context.relationshipId).toBeDefined()
+
+  context.differentUserEmail = `test${Date.now()}@test.com`
+  const response = await context.apis.defraIdStubAPI.registerNewUser(
+    context.differentUserEmail,
+    {
+      organisationId: context.relationshipId,
+      relationshipId: context.organisationId,
+      organisationName: context.organisationName
+    }
+  )
+  expect([200, 201]).toContain(response.statusCode)
+  context.differentDefraIdMockUserId = response.json.userId
+  context.differentUserOrganisationId = context.relationshipId
+  context.differentUserRelationshipId = response.relationshipId
+}
+
+async function loginAnotherUserOfSameOrganisation(context) {
+  expect(context.differentUserEmail).toBeDefined()
+  expect(context.differentUserRelationshipId).toBeDefined()
+
+  await loginToPortalViaStub(context, context.differentUserEmail)
+  await DefraIdStubPage.selectFirstOrganisation()
+  await MyAccountHomePage.verifyUserIsOnMyAccountHomePage()
+}
+
+async function registerAndLoginAnotherUserViaDefraIdStub(context) {
+  await registerAnotherUserViaDefraIdStub(context)
+  await loginAnotherUserOfSameOrganisation(context)
+}
+
+async function loginToPortalViaStub(context, email) {
+  // Start a clean browser session so relogin and user switching do not reuse existing auth cookies.
+  await UKPermitPage.browserReloadSession()
+  await UKPermitPage.open()
+  await UKPermitPage.verifyUserIsOnUKPermitPage()
+  await UKPermitPage.selectNoOption()
+  await UKPermitPage.click(UKPermitPage.continueButton)
+  await HomePage.verifyUserNavigatedCorrectlyToDefraIdService(
+    context.testConfig.defraIdServiceUrl
+  )
+
+  await DefraIdStubPage.loginAsAUser(email)
+}
+
+async function loginOriginalUserToPortal(context) {
+  expect(context.originalUserEmail).toBeDefined()
+  await loginToPortalViaStub(context, context.originalUserEmail)
+  await DefraIdStubPage.selectFirstOrganisation()
+  await MyAccountHomePage.verifyUserIsOnMyAccountHomePage()
 }
 
 async function navigateToPortalAndLogin(context, accountType) {
@@ -206,6 +263,20 @@ Given(
     } else {
       await navigateToPortalAndLogin(this, accountType)
     }
+  }
+)
+
+Given(
+  /^the (?:same|original) user logs back in to the waste receiver registration portal$/,
+  async function () {
+    await loginOriginalUserToPortal(this)
+  }
+)
+
+When(
+  'another user of the same organisation is registered and logged in to the waste receiver registration portal using the Defra ID mock service',
+  async function () {
+    await registerAndLoginAnotherUserViaDefraIdStub(this)
   }
 )
 

@@ -97,11 +97,36 @@ Feature: Report receipt of waste service charge
     When user attempts to re-try the payment after the error
     Then the user is redirected to intiate payment page
 
-  # @manual@issue=DR-49
-  # Scenario: User must be prevented to initiate a new payment for an organisation when one is already in progress
+  @env_dev @issue=DR-56
+  Scenario: Waste receiver must be prevented from initiating a new payment when a service charge payment is already in progress
+    Given a user is logged in to the waste receiver registration portal using a "Gov UK" account
+    And the service charge is due
+    And a service charge payment is already in progress for the organisation
+    And the same user logs back in to the waste receiver registration portal
+    When the user re-attempts to pay service charge through GOV.UK Pay
+    Then the user should see the service charge notification banner
+      | heading | A payment is already in progress                                                    |
+      | body    | A service charge payment for this account is already in progress. Do not try again. |
 
-  # @manual @issue=DR-50
-  # Scenario: A different user of the same organisation must be prevented to initiate a new payment for an organisation when one is already in progress
+  
+  @env_dev @issue=DR-56
+  Scenario: Waste receiver resumes the existing payment window when a service charge payment is already in progress
+    Given a user is logged in to the waste receiver registration portal using a "Gov UK" account
+    And the service charge is due
+    And a service charge payment is already in progress for the organisation
+    When user opens a new tab and navigates to pay service charge
+    Then same payment session should be resumed and user should be redirected to GOV.UK Pay
+
+  @env_dev @issue=DR-56
+  Scenario: Another user of the same organisation must be prevented from starting a new payment when one is already in progress
+    Given a user is logged in to the waste receiver registration portal using a "Gov UK" account
+    And the service charge is due
+    And a service charge payment is already in progress for the organisation
+    When another user of the same organisation is registered and logged in to the waste receiver registration portal using the Defra ID mock service
+    And the user re-attempts to pay service charge through GOV.UK Pay
+    Then the user should see the service charge notification banner
+      | heading | A payment is already in progress                                                    |
+      | body    | A service charge payment for this account is already in progress. Do not try again. |
 
 #  webhook verified manually only in ext-test 
 #  background process verified manually only in dev and test
@@ -134,4 +159,4 @@ Feature: Report receipt of waste service charge
 
     Examples:
       | card_brand | card_type | card_number      | refund_amount |
-      | Visa       | Credit    | 4444333322221111 |            26 |
+      | Visa       | Credit    | 4444333322221111 |           1400|

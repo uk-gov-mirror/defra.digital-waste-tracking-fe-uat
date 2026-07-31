@@ -190,8 +190,16 @@ class DefraIdStubPage extends Page {
     await this.continueButton.click()
   }
 
-  async getFirstOrganisationId() {
-    return await this.getFirstOrganisationIdInput.getText()
+  async getFirstOrganisationDetails() {
+    const organisationHint = await this.getFirstOrganisationIdInput.getText()
+
+    return {
+      organisationId: organisationHint
+        .replace(/Organisation ID:/g, '')
+        .replace(/\| Role: Employee/g, '')
+        .trim(),
+      relationshipId: await this.selectFirstOrganisationRadioButton.getValue()
+    }
   }
 }
 
