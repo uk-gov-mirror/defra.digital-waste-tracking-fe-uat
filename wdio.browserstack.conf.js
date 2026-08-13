@@ -4,14 +4,15 @@ import { initialiseAccessibilityChecking } from './test/utils/accessibility-chec
 import fs from 'node:fs'
 import { readFileSync } from 'fs'
 import { setResourcePool, addValueToPool } from '@wdio/shared-store-service'
+import AllureReporter, { addStep } from '@wdio/allure-reporter'
 import { ApiFactory } from './test/utils/apis/api-factory.js'
-import AllureReporter from '@wdio/allure-reporter'
 import {
   addAllureIssueLinksFromPickleTags,
   ALLURE_ISSUE_LINK_TEMPLATE
 } from './test/utils/allure-utils.js'
 import logger from '@wdio/logger'
 import { buildCucumberTagExpression } from './test/utils/cucumber-tag-expression.js'
+
 const log = logger('wdio.browserstack.conf.js')
 
 /** Cucumber @env_* tag: dev and perf-test scenarios use @env_dev */
@@ -164,7 +165,7 @@ export const config = {
 
   // Tests to exclude
   exclude: [],
-  maxInstances: 5,
+  maxInstances: 1,
 
   commonCapabilities: {
     'bstack:options': {
@@ -232,9 +233,10 @@ export const config = {
     timeout: 180000, // Increased from 120000 (120s) to 180000 (180s) for BrowserStack network latency
     require: ['./test/step-definitions/**/*.js'],
     tags: buildCucumberTagExpression(cucumberEnvTag),
+    // tags: '@local',
     failAmbiguousDefinitions: true,
     ignoreUndefinedDefinitions: false,
-    retry: 0
+    retry: 1
   },
 
   reporters: [
@@ -264,6 +266,15 @@ export const config = {
         'utf8'
       )
       const testConfig = JSON.parse(testConfigData)
+      await setResourcePool('availableGovUKUsers', testConfig.govUKLogin)
+      await setResourcePool(
+        'availableGovGatewayUsers',
+        testConfig.govGatewayLogin
+      )
+      await setResourcePool(
+        'availableMultipleBusinessesGovUKUsers',
+        testConfig.multipleBusinessesGovUKLogin
+      )
       // create a common user pool of gov uk and govt gateway users
       const users = testConfig.govUKLogin
         .concat(testConfig.govGatewayLogin)
@@ -363,6 +374,32 @@ export const config = {
         error.message
       )
     }
+    if (cucumberWorld.govUKUser !== undefined) {
+      if (cucumberWorld.userWithMultipleBusinesses === true) {
+        addStep(
+          `adding multiple businesses gov uk user ${cucumberWorld.govUKUser} to the pool`
+        )
+        await addValueToPool(
+          'availableMultipleBusinessesGovUKUsers',
+          cucumberWorld.govUKUser
+        )
+      } else if (cucumberWorld.doNotAddUserToPool === true) {
+        // do nothing
+      } else {
+        addStep(`adding gov uk user ${cucumberWorld.govUKUser} to the pool`)
+        await addValueToPool('availableGovUKUsers', cucumberWorld.govUKUser)
+      }
+    }
+    if (cucumberWorld.govGatewayUser !== undefined) {
+      addStep(
+        `adding gov gateway user ${cucumberWorld.govGatewayUser} to the pool`
+      )
+      await addValueToPool(
+        'availableGovGatewayUsers',
+        cucumberWorld.govGatewayUser
+      )
+    }
+
     if (cucumberWorld.govUKUser !== undefined) {
       await addValueToPool('availableUsers', cucumberWorld.govUKUser)
     }
