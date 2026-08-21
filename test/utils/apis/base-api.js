@@ -86,6 +86,41 @@ export class BaseAPI {
   }
 
   /**
+   * Make a GET request and return the raw response body (for non-JSON endpoints).
+   * @param {string} endpoint - API endpoint
+   * @param {Object} [headers={}] - Additional headers
+   * @returns {Promise<TextResponse>}
+   */
+  async getText(endpoint, headers = {}) {
+    const url = `${this.baseUrl}${endpoint}`
+    const requestHeaders = { ...this.defaultHeaders, ...headers }
+
+    await logAllureRequest('GET', endpoint, url, requestHeaders, this.httpProxy)
+
+    const response = await request(url, {
+      method: 'GET',
+      headers: requestHeaders,
+      dispatcher: this.agent
+    })
+
+    const body = await response.body.text()
+
+    await logAllureResponse(
+      'GET',
+      endpoint,
+      response.statusCode,
+      response.headers,
+      body
+    )
+
+    return {
+      statusCode: response.statusCode,
+      headers: response.headers,
+      body
+    }
+  }
+
+  /**
    * Make a POST request
    * @param {string} endpoint - API endpoint
    * @param {string} data - Request body data
