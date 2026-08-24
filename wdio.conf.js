@@ -14,6 +14,12 @@ import {
   ALLURE_ISSUE_LINK_TEMPLATE
 } from './test/utils/allure-utils.js'
 import { addStep } from '@wdio/allure-reporter'
+import {
+  ZAP_JSON_REPORT_PATH,
+  ZAP_HTML_REPORT_PATH,
+  ZAP_ALERTS_SUMMARY_PATH
+} from './test/utils/zap-report-paths.js'
+import { writeTextToFile } from './test/utils/write-text-file.js'
 
 const log = logger('wdio.conf.js')
 
@@ -206,21 +212,9 @@ export const config = {
     )
     cucumberWorld.testConfig = JSON.parse(testConfigData)
     cucumberWorld.env = process.env
-    const wasteOrganisationBackendServiceUrl = process.env.xapikey
-      ? `https://ephemeral-protected.api.${process.env.ENVIRONMENT}.cdp-int.defra.cloud/waste-organisation-backend`
-      : cucumberWorld.testConfig.wasteOrganisationBackendServiceUrl
-    const wasteMovementBackendServiceUrl = process.env.xapikey
-      ? `https://ephemeral-protected.api.${process.env.ENVIRONMENT}.cdp-int.defra.cloud/waste-movement-backend`
-      : cucumberWorld.testConfig.wasteMovementBackendServiceUrl
     cucumberWorld.apis = ApiFactory.create(
-      wasteOrganisationBackendServiceUrl,
-      wasteMovementBackendServiceUrl,
-      cucumberWorld.testConfig.wasteMovementExternalApiBaseUrl,
-      cucumberWorld.testConfig.cognitoOAuthBaseUrl,
-      cucumberWorld.testConfig.defraIdServiceUrl,
-      cucumberWorld.testConfig.govPayBaseUrl,
-      cucumberWorld.testConfig.wasteOrganisationFrontendBaseUrl,
-      cucumberWorld.env.ZAP_PROXY_API_URL ?? cucumberWorld.env.HTTP_PROXY
+      cucumberWorld.testConfig,
+      cucumberWorld.env
     )
     cucumberWorld.apis.govPayAPI.setAuthorizationHeader(
       process.env.GOV_PAY_API_KEY
@@ -331,6 +325,18 @@ export const config = {
         'availableMultipleBusinessesGovUKUsers',
         testConfig.multipleBusinessesGovUKLogin
       )
+    }
+    if (process.env.ENVIRONMENT === 'local' && process.env.ZAP_PROXY_URL) {
+      const apis = ApiFactory.create({}, process.env)
+      const sessionResponse = await apis.zapAPI.newSession()
+      if (
+        sessionResponse.statusCode !== 200 ||
+        sessionResponse.json?.Result !== 'OK'
+      ) {
+        throw new Error(
+          `ZAP newSession failed with status ${sessionResponse.statusCode} and result ${sessionResponse.json?.Result}`
+        )
+      }
     }
   },
   /**
@@ -453,12 +459,25 @@ export const config = {
    * @param {Array.<Object>} capabilities list of capabilities details
    * @param {<Object>} results object containing test results
    */
-  onComplete: function (exitCode, config, capabilities, results) {
+  onComplete: async function (exitCode, config, capabilities, results) {
     generateAccessibilityReportIndex()
 
     // !Do Not Remove! Required for test status to show correctly in portal.
     if (results?.failed && results.failed > 0) {
       fs.writeFileSync('FAILED', JSON.stringify(results))
+    }
+    if (process.env.ENVIRONMENT === 'local' && process.env.ZAP_PROXY_URL) {
+      const apis = ApiFactory.create({}, process.env)
+      const jsonReport = await apis.zapAPI.jsonReport()
+      await writeTextToFile(ZAP_JSON_REPORT_PATH, jsonReport.body)
+      const htmlReport = await apis.zapAPI.htmlReport()
+      await writeTextToFile(ZAP_HTML_REPORT_PATH, htmlReport.body)
+      const alertsSummary = await apis.zapAPI.alertsSummary()
+      await writeTextToFile(
+        ZAP_ALERTS_SUMMARY_PATH,
+        JSON.stringify(alertsSummary.json, null, 2)
+      )
+      await apis.close()
     }
   }
   /**

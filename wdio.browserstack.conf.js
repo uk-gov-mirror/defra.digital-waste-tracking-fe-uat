@@ -326,21 +326,9 @@ export const config = {
     )
     cucumberWorld.testConfig = JSON.parse(testConfigData)
     cucumberWorld.env = process.env
-    const wasteOrganisationBackendServiceUrl = process.env.xapikey
-      ? `https://ephemeral-protected.api.${process.env.ENVIRONMENT}.cdp-int.defra.cloud/waste-organisation-backend`
-      : cucumberWorld.testConfig.wasteOrganisationBackendServiceUrl
-    const wasteMovementBackendServiceUrl = process.env.xapikey
-      ? `https://ephemeral-protected.api.${process.env.ENVIRONMENT}.cdp-int.defra.cloud/waste-movement-backend`
-      : cucumberWorld.testConfig.wasteMovementBackendServiceUrl
     cucumberWorld.apis = ApiFactory.create(
-      wasteOrganisationBackendServiceUrl,
-      wasteMovementBackendServiceUrl,
-      cucumberWorld.testConfig.wasteMovementExternalApiBaseUrl,
-      cucumberWorld.testConfig.cognitoOAuthBaseUrl,
-      cucumberWorld.testConfig.defraIdServiceUrl,
-      cucumberWorld.testConfig.govPayBaseUrl,
-      cucumberWorld.testConfig.wasteOrganisationFrontendBaseUrl,
-      cucumberWorld.env.ZAP_PROXY_API_URL ?? cucumberWorld.env.HTTP_PROXY
+      cucumberWorld.testConfig,
+      cucumberWorld.env
     )
     cucumberWorld.apis.govPayAPI.setAuthorizationHeader(
       process.env.GOV_PAY_API_KEY
